@@ -1,0 +1,8 @@
+type Query {
+ customers: [Customer]
+}
+
+type Customer {
+ name : String
+ id: ID
+}
