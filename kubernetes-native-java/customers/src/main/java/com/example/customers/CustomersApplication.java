@@ -1,14 +1,17 @@
 package com.example.customers;
 
-import org.springframework.boot.ApplicationRunner;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnCloudPlatform;
 import org.springframework.boot.availability.AvailabilityChangeEvent;
 import org.springframework.boot.availability.LivenessState;
+import org.springframework.boot.cloud.CloudPlatform;
+import org.springframework.boot.context.event.ApplicationReadyEvent;
 import org.springframework.context.ApplicationContext;
-import org.springframework.context.annotation.Bean;
+import org.springframework.context.event.EventListener;
 import org.springframework.data.annotation.Id;
 import org.springframework.data.repository.reactive.ReactiveCrudRepository;
+import org.springframework.stereotype.Component;
 import org.springframework.stereotype.Controller;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.ResponseBody;
@@ -21,13 +24,16 @@ public class CustomersApplication {
         SpringApplication.run(CustomersApplication.class, args);
     }
 
-    @Bean
-    ApplicationRunner applicationRunner(CustomerRepository repository) {
-        return args -> Flux
-                .just("A", "B", "C")
-                .map(name -> new Customer(null, name))
-                .flatMap(repository::save)
-                .subscribe(System.out::println);
+}
+
+
+@Component
+@ConditionalOnCloudPlatform(CloudPlatform.KUBERNETES)
+class K8SRunner {
+
+    @EventListener(ApplicationReadyEvent.class)
+    public void run() {
+        System.out.println("Hello, Kubernetes!");
     }
 }
 
@@ -43,14 +49,9 @@ class HealthController {
 
     @GetMapping("/down")
     void down() {
-        AvailabilityChangeEvent.publish(this.context, LivenessState.BROKEN);
+        AvailabilityChangeEvent.publish(this.context,
+                LivenessState.BROKEN);
     }
-}
-
-record Customer(@Id Integer id, String name) {
-}
-
-interface CustomerRepository extends ReactiveCrudRepository<Customer, Integer> {
 }
 
 @Controller
@@ -64,7 +65,13 @@ class CustomerRestController {
     }
 
     @GetMapping("/customers")
-    Flux<Customer> customerFlux() {
+    Flux<Customer> get() {
         return this.repository.findAll();
     }
+}
+
+interface CustomerRepository extends ReactiveCrudRepository<Customer, Integer> {
+}
+
+record Customer(@Id Integer id, String name) {
 }
